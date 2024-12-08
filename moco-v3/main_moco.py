@@ -368,6 +368,7 @@ def train(train_loader, model, optimizer, scaler, summary_writer, epoch, args):
             
         images = images.to('cuda')
 
+
         print(f"Image[0] Type: {type(images[0])}")
         print(f"Image[0] device: {images[0].device}")
         print(f"Image[1] device: {images[1].device}")

@@ -42,12 +42,13 @@ class MoCo(nn.Module):
             mlp.append(nn.Linear(dim1, dim2, bias=False))
 
             if l < num_layers - 1:
-                mlp.append(nn.BatchNorm1d(dim2))
+                mlp.append(nn.LayerNorm(dim2))  # Remplacer BatchNorm par LayerNorm
                 mlp.append(nn.ReLU(inplace=True))
             elif last_bn:
                 # follow SimCLR's design: https://github.com/google-research/simclr/blob/master/model_util.py#L157
                 # for simplicity, we further removed gamma in BN
-                mlp.append(nn.BatchNorm1d(dim2, affine=False))
+                # Utiliser LayerNorm à la place de BatchNorm
+                mlp.append(nn.LayerNorm(dim2))
 
         return nn.Sequential(*mlp)
 
@@ -117,6 +118,7 @@ class MoCo_ViT(MoCo):
         # projectors
         self.base_encoder.head = self._build_mlp(3, hidden_dim, mlp_dim, dim)
         self.momentum_encoder.head = self._build_mlp(3, hidden_dim, mlp_dim, dim)
+    
 
         # predictor
         self.predictor = self._build_mlp(2, dim, mlp_dim, dim)
