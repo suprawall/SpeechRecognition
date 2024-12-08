@@ -230,7 +230,7 @@ def main_worker(gpu, ngpus_per_node, args):
         optimizer = torch.optim.AdamW(model.parameters(), args.lr,
                                 weight_decay=args.weight_decay)
         
-    model.to('cuda')
+    model = model.to('cuda')
     scaler = torch.amp.GradScaler()
     summary_writer = SummaryWriter() if args.rank == 0 else None
 
@@ -297,7 +297,7 @@ def main_worker(gpu, ngpus_per_node, args):
     emotion_tab
         
     normalize = transforms.Compose([
-    transforms.Normalize(mean=[0.485, 0.456, 0.406],
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
                          std=[0.229, 0.224, 0.225])
     ])
 
@@ -366,17 +366,22 @@ def train(train_loader, model, optimizer, scaler, summary_writer, epoch, args):
         if args.moco_m_cos:
             moco_m = adjust_moco_momentum(epoch + i / iters_per_epoch, args)
             
-        if args.gpu is not None:
-            print("deplacer sur ")
-            images[0] = images[0].cuda(args.gpu, non_blocking=True)
-            images[1] = images[1].cuda(args.gpu, non_blocking=True)
+        images = images.to('cuda')
+
+        print(f"Image[0] Type: {type(images[0])}")
+        print(f"Image[0] device: {images[0].device}")
+        print(f"Image[1] device: {images[1].device}")
+        print(f"Model device: {next(model.parameters()).device}")
         
         # compute output
         with torch.amp.autocast(device_type='cuda', enabled=True):  # Utiliser torch.amp au lieu de torch.cuda.amp
             images = images.to(torch.float16)
+            print("to float16")
             loss = model(images[0], images[1], moco_m)
-            
+            print("loss réussi")
+          
         losses.update(loss.item(), images[0].size(0))
+        print("loss update réussi")
         if args.rank == 0:
             summary_writer.add_scalar("loss", loss.item(), epoch * iters_per_epoch + i)
 
