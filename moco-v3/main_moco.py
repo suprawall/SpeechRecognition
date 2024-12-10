@@ -325,7 +325,7 @@ def main_worker(gpu, ngpus_per_node, args):
         # train for one epoch
         train(train_loader, model, optimizer, scaler, summary_writer, epoch, args)
 
-        if not args.multiprocessing_distributed or (args.multiprocessing_distributed
+        """if not args.multiprocessing_distributed or (args.multiprocessing_distributed
                 and args.rank == 0): # only the first GPU saves checkpoint
             save_checkpoint({
                 'epoch': epoch + 1,
@@ -333,7 +333,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 'state_dict': model.state_dict(),
                 'optimizer' : optimizer.state_dict(),
                 'scaler': scaler.state_dict(),
-            }, is_best=False, filename='checkpoint_%04d.pth.tar' % epoch)
+            }, is_best=False, filename='checkpoint_%04d.pth.tar' % epoch)"""
 
     if args.rank == 0:
         summary_writer.close()
@@ -355,7 +355,7 @@ def train(train_loader, model, optimizer, scaler, summary_writer, epoch, args):
     iters_per_epoch = len(train_loader)
     moco_m = args.moco_m
     for i, (images, _) in enumerate(train_loader):
-        print("iter 1")
+        print(f"iter {i}")
         # measure data loading time
         data_time.update(time.time() - end)
         
@@ -369,20 +369,17 @@ def train(train_loader, model, optimizer, scaler, summary_writer, epoch, args):
         images = images.to('cuda')
 
 
-        print(f"Image[0] Type: {type(images[0])}")
+        """print(f"Image[0] Type: {type(images[0])}")
         print(f"Image[0] device: {images[0].device}")
         print(f"Image[1] device: {images[1].device}")
-        print(f"Model device: {next(model.parameters()).device}")
+        print(f"Model device: {next(model.parameters()).device}")"""
         
         # compute output
         with torch.amp.autocast(device_type='cuda', enabled=True):  # Utiliser torch.amp au lieu de torch.cuda.amp
             images = images.to(torch.float16)
-            print("to float16")
             loss = model(images[0], images[1], moco_m)
-            print("loss réussi")
           
         losses.update(loss.item(), images[0].size(0))
-        print("loss update réussi")
         if args.rank == 0:
             summary_writer.add_scalar("loss", loss.item(), epoch * iters_per_epoch + i)
 

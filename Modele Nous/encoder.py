@@ -40,7 +40,6 @@ class MemoryQueue:
         
         # Met à jour l'index `ptr` pour la prochaine insertion
         self.ptr = (self.ptr + batch_size) % queue_size
-<<<<<<< HEAD
     def state_dict(self):
         # Retourne l'état complet de la queue (y compris les valeurs pertinentes)
         return {
@@ -52,8 +51,6 @@ class MemoryQueue:
         # Charge l'état de la queue
         self.queue = state_dict['queue']
         self.ptr = state_dict['ptr']
-=======
->>>>>>> 9fb1c60df3742cd17f28cf438bf641913e57d97a
 
 
 def update_key_encoder(query_encoder, key_encoder, momentum=0.99):
