@@ -18,6 +18,7 @@ from functools import partial
 
 import torch
 import torch.nn as nn
+import torch.optim as optim
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
@@ -28,6 +29,7 @@ import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as torchvision_models
+from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
 import DL_2024_2025_prepareData
 
@@ -279,6 +281,16 @@ def main_worker(gpu, ngpus_per_node, args):
         'T': 'sadness'
     }
     
+    emotion_to_idx = {
+        'anger': 0,
+        'boredom': 1,
+        'disgust': 2,
+        'fear': 3,
+        'happiness': 4,
+        'neutral': 5,
+        'sadness': 6
+    }
+    
     for audio_file in os.listdir(data_dir):
         speaker = audio_file[0:2]
         text_code = audio_file[2:6]
@@ -301,8 +313,11 @@ def main_worker(gpu, ngpus_per_node, args):
                          std=[0.229, 0.224, 0.225])
     ])
 
-
-    train_dataset = DL_2024_2025_prepareData.AudioDataset(audio_file_tab, sr=16000, n_fft=1024, hop_length=512, transform=normalize)
+    dataset = DL_2024_2025_prepareData.AudioDataset(audio_file_tab, emotion_tab, sr=16000, n_fft=1024, hop_length=512, transform=normalize)
+    
+    train_size = int(0.8 * len(dataset))
+    test_size = len(dataset) - train_size
+    train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
 
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
@@ -311,13 +326,15 @@ def main_worker(gpu, ngpus_per_node, args):
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
-        batch_size=32,
+        batch_size=args.batch_size,
         shuffle=True,
         num_workers=2,
         pin_memory=True,
         sampler=train_sampler, 
         drop_last=True)
+    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=2, pin_memory=True)
 
+    print(f"début de l'entrainement avec -b: {args.batch_size}")
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             train_sampler.set_epoch(epoch)
@@ -337,6 +354,8 @@ def main_worker(gpu, ngpus_per_node, args):
 
     if args.rank == 0:
         summary_writer.close()
+    
+    linear_probing(train_loader=train_loader, model=model)
 
 def train(train_loader, model, optimizer, scaler, summary_writer, epoch, args):
     batch_time = AverageMeter('Time', ':6.3f')
@@ -366,17 +385,11 @@ def train(train_loader, model, optimizer, scaler, summary_writer, epoch, args):
         if args.moco_m_cos:
             moco_m = adjust_moco_momentum(epoch + i / iters_per_epoch, args)
             
-        images = images.to('cuda')
-
-
-        """print(f"Image[0] Type: {type(images[0])}")
-        print(f"Image[0] device: {images[0].device}")
-        print(f"Image[1] device: {images[1].device}")
-        print(f"Model device: {next(model.parameters()).device}")"""
+        images[0] = images[0].to(torch.float32).to('cuda')
+        images[1] = images[1].to(torch.float32).to('cuda')
         
         # compute output
         with torch.amp.autocast(device_type='cuda', enabled=True):  # Utiliser torch.amp au lieu de torch.cuda.amp
-            images = images.to(torch.float16)
             loss = model(images[0], images[1], moco_m)
           
         losses.update(loss.item(), images[0].size(0))
@@ -395,6 +408,55 @@ def train(train_loader, model, optimizer, scaler, summary_writer, epoch, args):
 
         if i % args.print_freq == 0:
             progress.display(i)
+            
+def linear_probing(train_loader, model):
+    
+    model = torch.nn.Sequential(*list(model.children())[:-1])
+    for param in model.parameters():
+        param.requires_grad = False
+        
+    linear_classifier = nn.Linear(model[-1].in_features, 7)
+    optimizer = optim.SGD(linear_classifier.parameters(), lr=0.1, momentum=0.9, weight_decay=0)
+    criterion = nn.CrossEntropyLoss()
+    
+    epochs = 15
+    linear_classifier.train()
+    for epoch in range(epochs):
+        #linear_classifier.train()
+        running_loss = 0.0
+        correct = 0
+        total = 0
+        
+        for i, (images, labels) in enumerate(train_loader):
+            print(f"iter {i}")
+            spectro1, spectro2 = images
+            spectro1 = spectro1.to(torch.float32).to('cuda')
+            spectro2 = spectro2.to(torch.float32).to('cuda')
+            labels = labels.to('cuda')
+            
+            
+            # Extraire les caractéristiques du modèle pré-entraîné
+            features = model(spectro1) 
+            features = features.view(features.size(0), -1)  # Flatten
+            
+            # Appliquer le classifieur linéaire
+            optimizer.zero_grad()
+            outputs = linear_classifier(features)
+            
+            # Calculer la perte et les gradients
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            
+            running_loss += loss.item()
+            _, predicted = outputs.max(1)
+            total += labels.size(0)
+            correct += predicted.eq(labels).sum().item()
+
+        # Afficher la perte et l'exactitude pour chaque époque
+        print(f'Epoch [{epoch+1}/{epochs}], Loss: {running_loss/len(train_loader):.4f}, Accuracy: {100.*correct/total:.2f}%')
+
+    
 
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):

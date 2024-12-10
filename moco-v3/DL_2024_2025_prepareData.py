@@ -53,7 +53,7 @@ def augment_audio(data, sampling_rate, augment_type):
     return data
 
 class AudioDataset(Dataset):
-    def __init__(self, file_paths, sr=16000, n_fft=1024, hop_length=512, transform=None):
+    def __init__(self, file_paths, emotion_tab, sr=16000, n_fft=1024, hop_length=512, transform=None):
         """
         Dataset pour charger des fichiers audio et générer des spectrogrammes augmentés.
         
@@ -65,6 +65,7 @@ class AudioDataset(Dataset):
         - transform (callable, optional): Transformations supplémentaires (normalisation, etc.).
         """
         self.file_paths = file_paths
+        self.emotion_tab = emotion_tab
         self.sr = sr
         self.n_fft = n_fft
         self.hop_length = hop_length
@@ -74,10 +75,10 @@ class AudioDataset(Dataset):
         return len(self.file_paths)
 
     def __getitem__(self, idx):
-        # Charger le fichier audio
         file_path = self.file_paths[idx]
+        emotion = self.emotion_tab[idx]
         waveform, sr = torchaudio.load(file_path)
-        waveform = waveform[0].numpy()  # Convertir en NumPy array
+        waveform = waveform[0].numpy()  
 
         # Appliquer les augmentations
         augment1 = augment_audio(waveform, sr, "noise_stretch")
@@ -86,20 +87,19 @@ class AudioDataset(Dataset):
         # Convertir chaque augmentation en spectrogramme
         spectrogram1 = self._compute_spectrogram(augment1, sr)
         spectrogram2 = self._compute_spectrogram(augment2, sr)
-    
-        
+
         spectrogram1 = resize(torch.tensor(spectrogram1), [224, 224])
         spectrogram2 = resize(torch.tensor(spectrogram2), [224, 224])
         
-        spectrogram1 = spectrogram1.unsqueeze(0)
-        spectrogram2 = spectrogram2.unsqueeze(0)
+        """spectrogram1 = spectrogram1.unsqueeze(0)
+        spectrogram2 = spectrogram2.unsqueeze(0)"""
 
         # Appliquer des transformations supplémentaires si nécessaires
         if self.transform:
             spectrogram1 = self.transform(spectrogram1)
             spectrogram2 = self.transform(spectrogram2)
             
-        return spectrogram1, spectrogram2
+        return (spectrogram1, spectrogram2), emotion
 
     def _compute_spectrogram(self, data, sr):
         """
