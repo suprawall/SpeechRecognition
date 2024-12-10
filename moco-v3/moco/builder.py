@@ -95,7 +95,7 @@ class MoCo(nn.Module):
             k1 = self.momentum_encoder(x1)
             k2 = self.momentum_encoder(x2)
 
-        return self.contrastive_loss(q1, k2) + self.contrastive_loss(q2, k1)
+        return q1, q2,self.contrastive_loss(q1, k2) + self.contrastive_loss(q2, k1)
 
 
 class MoCo_ResNet(MoCo):

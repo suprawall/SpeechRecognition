@@ -31,7 +31,9 @@ import torchvision.datasets as datasets
 import torchvision.models as torchvision_models
 from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data import random_split, Subset
 import DL_2024_2025_prepareData
+import Val_Sara_lincls
 
 import moco.builder
 import moco.loader
@@ -304,7 +306,8 @@ def main_worker(gpu, ngpus_per_node, args):
     emotion_tab = []
     for i in range(len(target_labels)):
         emo = target_labels[i][5]
-        emotion_tab.append(emotion_map[emo])
+        emotion = emotion_map[emo]
+        emotion_tab.append(emotion_to_idx[emotion])
         audio_file_tab.append(os.path.join(data_dir, f'{target_labels[i]}wav'))
     emotion_tab
         
@@ -313,26 +316,31 @@ def main_worker(gpu, ngpus_per_node, args):
                          std=[0.229, 0.224, 0.225])
     ])
 
-    dataset = DL_2024_2025_prepareData.AudioDataset(audio_file_tab, emotion_tab, sr=16000, n_fft=1024, hop_length=512, transform=normalize)
+    normal_dataset = DL_2024_2025_prepareData.NormalDataset(audio_file_tab, emotion_tab, sr=16000, n_fft=1024, hop_length=512, transform=normalize)
+    augment_dataset = DL_2024_2025_prepareData.AugmentDataset(audio_file_tab, emotion_tab, sr=16000, n_fft=1024, hop_length=512, transform=normalize)
     
-    train_size = int(0.8 * len(dataset))
-    test_size = len(dataset) - train_size
-    train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
+    train_size = int(0.8 * len(augment_dataset))
+    test_size = len(augment_dataset) - train_size
+    train_dataset, test_dataset = random_split(augment_dataset, [train_size, test_size])
+    
+    train_indices = train_dataset.indices
+    test_indices = test_dataset.indices
+    train_dataset2 = Subset(normal_dataset, train_indices)
+    test_dataset2 = Subset(normal_dataset, test_indices)
 
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
     else:
         train_sampler = None
 
-    train_loader = torch.utils.data.DataLoader(
-        train_dataset,
-        batch_size=args.batch_size,
-        shuffle=True,
-        num_workers=2,
-        pin_memory=True,
-        sampler=train_sampler, 
-        drop_last=True)
-    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=2, pin_memory=True)
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2, pin_memory=True, sampler=train_sampler, drop_last=True)
+    
+    #test loader pas utile ici mais on coupe qd meme 80% pour le train loader pour pas qu'il s'entraine sur toute les données
+    #test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=2, pin_memory=True)
+
+    train_loader2 = DataLoader(train_dataset2, batch_size=args.batch_size, shuffle=True, num_workers=2, pin_memory=True, sampler=train_sampler, drop_last=True)
+    test_loader2 = DataLoader(test_dataset2, batch_size=args.batch_size, shuffle=False, num_workers=2, pin_memory=True)
+
 
     print(f"début de l'entrainement avec -b: {args.batch_size}")
     for epoch in range(args.start_epoch, args.epochs):
@@ -355,7 +363,17 @@ def main_worker(gpu, ngpus_per_node, args):
     if args.rank == 0:
         summary_writer.close()
     
-    linear_probing(train_loader=train_loader, model=model)
+    #linear_probing(train_loader, model, args)
+    """criterion = nn.CrossEntropyLoss().cuda(args.gpu)
+    optimizer = torch.optim.SGD(parameters, init_lr,
+                                momentum=args.momentum,
+                                weight_decay=args.weight_decay)
+    epoch
+    args
+    test_loader"""
+    
+    Val_Sara_lincls.execute_lb_and_validate(model, train_loader2, test_loader2, args)
+    
 
 def train(train_loader, model, optimizer, scaler, summary_writer, epoch, args):
     batch_time = AverageMeter('Time', ':6.3f')
@@ -375,6 +393,8 @@ def train(train_loader, model, optimizer, scaler, summary_writer, epoch, args):
     moco_m = args.moco_m
     for i, (images, _) in enumerate(train_loader):
         print(f"iter {i}")
+        if i == 0:
+            print(images[0].shape)
         # measure data loading time
         data_time.update(time.time() - end)
         
@@ -390,7 +410,7 @@ def train(train_loader, model, optimizer, scaler, summary_writer, epoch, args):
         
         # compute output
         with torch.amp.autocast(device_type='cuda', enabled=True):  # Utiliser torch.amp au lieu de torch.cuda.amp
-            loss = model(images[0], images[1], moco_m)
+            _, _, loss = model(images[0], images[1], moco_m)
           
         losses.update(loss.item(), images[0].size(0))
         if args.rank == 0:
@@ -409,15 +429,16 @@ def train(train_loader, model, optimizer, scaler, summary_writer, epoch, args):
         if i % args.print_freq == 0:
             progress.display(i)
             
-def linear_probing(train_loader, model):
+def linear_probing(train_loader, model, args):
     
     model = torch.nn.Sequential(*list(model.children())[:-1])
     for param in model.parameters():
         param.requires_grad = False
         
-    linear_classifier = nn.Linear(model[-1].in_features, 7)
+    linear_classifier = nn.Linear(model[-1].num_features, 7)
     optimizer = optim.SGD(linear_classifier.parameters(), lr=0.1, momentum=0.9, weight_decay=0)
     criterion = nn.CrossEntropyLoss()
+    moco_m = args.moco_m
     
     epochs = 15
     linear_classifier.train()
@@ -429,19 +450,21 @@ def linear_probing(train_loader, model):
         
         for i, (images, labels) in enumerate(train_loader):
             print(f"iter {i}")
+            print(labels)
             spectro1, spectro2 = images
             spectro1 = spectro1.to(torch.float32).to('cuda')
             spectro2 = spectro2.to(torch.float32).to('cuda')
+            print(spectro1.shape)
             labels = labels.to('cuda')
             
             
             # Extraire les caractéristiques du modèle pré-entraîné
-            features = model(spectro1) 
-            features = features.view(features.size(0), -1)  # Flatten
+            q1, q2, _ = model(spectro1, spectro2, moco_m)  
+            q1 = q1.view(q1.size(0), -1)
             
             # Appliquer le classifieur linéaire
             optimizer.zero_grad()
-            outputs = linear_classifier(features)
+            outputs = linear_classifier(q1)
             
             # Calculer la perte et les gradients
             loss = criterion(outputs, labels)
@@ -455,9 +478,6 @@ def linear_probing(train_loader, model):
 
         # Afficher la perte et l'exactitude pour chaque époque
         print(f'Epoch [{epoch+1}/{epochs}], Loss: {running_loss/len(train_loader):.4f}, Accuracy: {100.*correct/total:.2f}%')
-
-    
-
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
     torch.save(state, filename)

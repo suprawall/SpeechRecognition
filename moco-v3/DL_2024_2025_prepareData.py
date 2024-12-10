@@ -52,13 +52,14 @@ def augment_audio(data, sampling_rate, augment_type):
         data = pitch(data, sampling_rate)
     return data
 
-class AudioDataset(Dataset):
+class AugmentDataset(Dataset):
     def __init__(self, file_paths, emotion_tab, sr=16000, n_fft=1024, hop_length=512, transform=None):
         """
         Dataset pour charger des fichiers audio et générer des spectrogrammes augmentés.
         
         Args:
         - file_paths (list): Liste des chemins vers les fichiers audio.
+        - emotion_tab (list): Liste des emotions aux meme index que file_paths
         - sr (int): Fréquence d'échantillonnage (par défaut 16 kHz).
         - n_fft (int): Taille de la fenêtre FFT pour les spectrogrammes.
         - hop_length (int): Décalage entre les fenêtres FFT.
@@ -120,3 +121,63 @@ class AudioDataset(Dataset):
           
         return spectrogram_3d
 
+class NormalDataset(Dataset):
+    def __init__(self, file_paths, emotion_tab, sr=16000, n_fft=1024, hop_length=512, transform=None):
+        """
+        Dataset pour charger des fichiers audio et générer des spectrogrammes augmentés.
+        
+        Args:
+        - file_paths (list): Liste des chemins vers les fichiers audio.
+        - emotion_tab (list): Liste des emotions aux meme index que file_paths
+        - sr (int): Fréquence d'échantillonnage (par défaut 16 kHz).
+        - n_fft (int): Taille de la fenêtre FFT pour les spectrogrammes.
+        - hop_length (int): Décalage entre les fenêtres FFT.
+        - transform (callable, optional): Transformations supplémentaires (normalisation, etc.).
+        """
+        self.file_paths = file_paths
+        self.emotion_tab = emotion_tab
+        self.sr = sr
+        self.n_fft = n_fft
+        self.hop_length = hop_length
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.file_paths)
+
+    def __getitem__(self, idx):
+        file_path = self.file_paths[idx]
+        emotion = self.emotion_tab[idx]
+        waveform, sr = torchaudio.load(file_path)
+        waveform = waveform[0].numpy()  
+
+        spectrogram1 = self._compute_spectrogram(waveform, sr)
+
+        spectrogram1 = resize(torch.tensor(spectrogram1), [224, 224])
+        
+        """spectrogram1 = spectrogram1.unsqueeze(0)
+        spectrogram2 = spectrogram2.unsqueeze(0)"""
+
+        # Appliquer des transformations supplémentaires si nécessaires
+        if self.transform:
+            spectrogram1 = self.transform(spectrogram1)
+            
+        return spectrogram1, emotion
+
+    def _compute_spectrogram(self, data, sr):
+        """
+        Convertit un signal audio en spectrogramme.
+        
+        Args:
+        - data (np.array): Signal audio brut.
+        - sr (int): Fréquence d'échantillonnage.
+        
+        Returns:
+        - np.array: Spectrogramme 3D (3 canaux, Hauteur, Largeur).
+        """
+        # Calcul du spectrogramme
+        spectrogram = librosa.stft(data, n_fft=self.n_fft, hop_length=self.hop_length)
+        spectrogram = np.abs(spectrogram)  
+        spectrogram_db = librosa.amplitude_to_db(spectrogram, ref=np.max)
+        spectrogram_3d = np.stack([spectrogram_db] * 3, axis=0)  # [3, Hauteur, Largeur]
+          
+        return spectrogram_3d

@@ -8,7 +8,7 @@ import DL_2024_2025_prepareData
 import encoder
 import sklearn.metrics as metrics
 
-RESUME = True
+RESUME = False
 
 def resume_training(query_encoder, key_encoder, optimizer, queue, checkpoint_path, start_epoch=0):
     # Charger le modèle et l'optimiseur depuis la sauvegarde
@@ -115,7 +115,7 @@ def main():
         train_dataset, test_dataset = random_split(dataset, [train_size, test_size], generator=torch.Generator().manual_seed(42))
         start_epoch = 0
 
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=2, pin_memory=True)
+    train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=2, pin_memory=True)
     test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers=2, pin_memory=True)
     
 
@@ -191,6 +191,7 @@ def main():
             total = 0
             for i, (images, labels) in enumerate(train_loader):
                 print(f"iter {i}")
+                print(labels)
                 spectro1, spectro2 = images
                 spectro1 = spectro1.to(torch.float32).to('cuda')
                 spectro2 = spectro2.to(torch.float32).to('cuda')
@@ -254,7 +255,7 @@ def main():
     
     #model, optimizer, start_epoch = resume_training(query_encoder, optimizer, checkpoint_path, start_epoch=20)
     
-    train(query_encoder, train_loader, optimizer, start_epoch=0, num_epochs=14)
+    train(query_encoder, train_loader, optimizer, start_epoch=0, num_epochs=1)
 
     # Effectuer le linear probing (entraîner le classificateur linéaire)
     linear_probe(train_loader, test_loader)
