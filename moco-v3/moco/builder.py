@@ -123,24 +123,6 @@ class MoCo_ViT(MoCo):
 
         # predictor
         self.predictor = self._build_mlp(2, dim, mlp_dim, dim)
-        
-    def remove_mlp_head(self):
-        """
-        Préparer le modèle pour le linear probing :
-        - Supprimer la tête MLP.
-        - Geler les paramètres de l'encodeur de base.
-        """
-        # Supprimer la tête MLP (predictor et projector)
-        self.base_encoder.head = nn.Identity()
-        self.momentum_encoder = None  # plus besoin du momentum encoder pour probing
-        self.predictor = None
-
-        # Geler tous les paramètres de l'encodeur
-        for param in self.base_encoder.parameters():
-            param.requires_grad = False
-
-        # Ajouter une couche linéaire pour le probing
-        self.linear_classifier = nn.Linear(self.base_encoder.embed_dim, 1000)
 
 
 # utils

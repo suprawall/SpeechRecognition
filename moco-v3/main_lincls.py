@@ -27,6 +27,7 @@ import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as torchvision_models
+import DL_2024_2025_prepareData
 
 import vits
 
@@ -37,8 +38,8 @@ torchvision_model_names = sorted(name for name in torchvision_models.__dict__
 model_names = ['vit_small', 'vit_base', 'vit_conv_small', 'vit_conv_base'] + torchvision_model_names
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
-parser.add_argument('data', metavar='DIR',
-                    help='path to dataset')
+"""parser.add_argument('data', metavar='DIR',
+                    help='path to dataset')"""
 parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet50',
                     choices=model_names,
                     help='model architecture: ' +
@@ -262,12 +263,56 @@ def main_worker(gpu, ngpus_per_node, args):
     cudnn.benchmark = True
 
     # Data loading code
-    traindir = os.path.join(args.data, 'train')
-    valdir = os.path.join(args.data, 'val')
+    # Data loading code
+    data_dir = "./wav"
+
+    # Load and preprocess audio data using spectrograms
+    labels = os.listdir(data_dir)
+    audio_data = []
+    target_labels = []
+
+    emotion_map = {
+        'W': 'anger',
+        'L': 'boredom',
+        'E': 'disgust',
+        'A': 'fear',
+        'F': 'happiness',
+        'N': 'neutral',
+        'T': 'sadness'
+    }
+    
+    emotion_to_idx = {
+        'anger': 0,
+        'boredom': 1,
+        'disgust': 2,
+        'fear': 3,
+        'happiness': 4,
+        'neutral': 5,
+        'sadness': 6
+    }
+    
+    for audio_file in os.listdir(data_dir):
+        speaker = audio_file[0:2]
+        text_code = audio_file[2:6]
+        emotion = audio_file[6]
+        version = audio_file[7] if len(audio_file) > 7 else None
+        label = f"{speaker}{text_code}{emotion}{version}"
+        target_labels.append(label)
+    
+    audio_file_tab = []
+    #construire le tableau des emotions:
+    emotion_tab = []
+    for i in range(len(target_labels)):
+        emo = target_labels[i][5]
+        emotion = emotion_map[emo]
+        emotion_tab.append(emotion_to_idx[emotion])
+        audio_file_tab.append(os.path.join(data_dir, f'{target_labels[i]}wav'))
+    emotion_tab
+        
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
 
-    train_dataset = datasets.ImageFolder(
+    """train_dataset = datasets.ImageFolder(
         traindir,
         transforms.Compose([
             transforms.RandomResizedCrop(224),
@@ -276,10 +321,6 @@ def main_worker(gpu, ngpus_per_node, args):
             normalize,
         ]))
 
-    if args.distributed:
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
-    else:
-        train_sampler = None
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
@@ -297,11 +338,24 @@ def main_worker(gpu, ngpus_per_node, args):
 
     if args.evaluate:
         validate(val_loader, model, criterion, args)
-        return
+        return"""
+    
+    normal_dataset = DL_2024_2025_prepareData.NormalDataset(audio_file_tab, emotion_tab, sr=16000, n_fft=1024, hop_length=512, transform=normalize)
+    
+    train_size = int(0.8 * len(normal_dataset))
+    test_size = len(normal_dataset) - train_size
+
+    train_indices = list(range(train_size))
+    test_indices = list(range(train_size, len(normal_dataset)))
+
+    train_dataset = torch.utils.data.Subset(normal_dataset, train_indices)
+    test_dataset = torch.utils.data.Subset(normal_dataset, test_indices)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2, pin_memory=True, sampler=None, drop_last=True)
+    val_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=2, pin_memory=True)
 
     for epoch in range(args.start_epoch, args.epochs):
-        if args.distributed:
-            train_sampler.set_epoch(epoch)
+        """if args.distributed:
+            train_sampler.set_epoch(epoch)"""
         adjust_learning_rate(optimizer, init_lr, epoch, args)
 
         # train for one epoch
@@ -310,7 +364,7 @@ def main_worker(gpu, ngpus_per_node, args):
         # evaluate on validation set
         acc1 = validate(val_loader, model, criterion, args)
 
-        # remember best acc@1 and save checkpoint
+        """# remember best acc@1 and save checkpoint
         is_best = acc1 > best_acc1
         best_acc1 = max(acc1, best_acc1)
 
@@ -324,7 +378,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 'optimizer' : optimizer.state_dict(),
             }, is_best)
             if epoch == args.start_epoch:
-                sanity_check(model.state_dict(), args.pretrained, linear_keyword)
+                sanity_check(model.state_dict(), args.pretrained, linear_keyword)"""
 
 
 def train(train_loader, model, criterion, optimizer, epoch, args):

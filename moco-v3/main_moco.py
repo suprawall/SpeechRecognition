@@ -321,10 +321,13 @@ def main_worker(gpu, ngpus_per_node, args):
     
     train_size = int(0.8 * len(augment_dataset))
     test_size = len(augment_dataset) - train_size
-    train_dataset, test_dataset = random_split(augment_dataset, [train_size, test_size])
-    
-    train_indices = train_dataset.indices
-    test_indices = test_dataset.indices
+
+    # Diviser l'index de manière fixe, sans randomisation
+    train_indices = list(range(train_size))
+    test_indices = list(range(train_size, len(augment_dataset)))
+
+    train_dataset = torch.utils.data.Subset(augment_dataset, train_indices)
+    test_dataset = torch.utils.data.Subset(augment_dataset, test_indices)
     train_dataset2 = Subset(normal_dataset, train_indices)
     test_dataset2 = Subset(normal_dataset, test_indices)
 
