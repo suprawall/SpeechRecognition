@@ -55,7 +55,8 @@ def execute_lb_and_validate(model, train_loader, test_loader, args):
 
     criterion = nn.CrossEntropyLoss().cuda(args.gpu)
     
-    init_lr = args.lr * args.batch_size / 256
+    #init_lr = args.lr * args.batch_size / 256
+    init_lr = 0.0016
     # optimize only the linear classifier
     parameters = list(filter(lambda p: p.requires_grad, model_linear.parameters()))
     assert len(parameters) == 2  # weight, bias
