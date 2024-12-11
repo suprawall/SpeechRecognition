@@ -350,15 +350,15 @@ def main_worker(gpu, ngpus_per_node, args):
         # train for one epoch
         train(train_loader, model, optimizer, scaler, summary_writer, epoch, args)
 
-        """if not args.multiprocessing_distributed or (args.multiprocessing_distributed
-                and args.rank == 0): # only the first GPU saves checkpoint
+        """if epoch + 1 == args.epochs: #On enregistre qu'à la derniere epoch pour minimiser l'espace de stockage nécessaire
+            checkpoint_path = f'checkpoint_{epoch+1}.pth.tar'
             save_checkpoint({
                 'epoch': epoch + 1,
                 'arch': args.arch,
                 'state_dict': model.state_dict(),
                 'optimizer' : optimizer.state_dict(),
                 'scaler': scaler.state_dict(),
-            }, is_best=False, filename='checkpoint_%04d.pth.tar' % epoch)"""
+            }, is_best=False, filename=checkpoint_path)"""
 
     if args.rank == 0:
         summary_writer.close()

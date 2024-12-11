@@ -22,50 +22,64 @@ import torchvision.models as torchvision_models
 
 import vits
 
+class MoCo_ViT_LinearProbing(nn.Module):
+    def __init__(self, pretrained_model, num_classes):
+        super(MoCo_ViT_LinearProbing, self).__init__()
+        
+        # Copier les couches du modèle pré-entraîné
+        self.encoder = pretrained_model.base_encoder
+        self.encoder.head = nn.Identity()
+        
+        # Ajouter une couche linéaire pour le linear probing
+        self.linear = nn.Linear(self.encoder.embed_dim, num_classes)
+
+    def forward(self, x):
+        # Extraire les caractéristiques gelées
+        with torch.no_grad():
+            features = self.encoder(x)
+        
+        # Passer par la couche linéaire
+        logits = self.linear(features)
+        return logits
+
 
 def execute_lb_and_validate(model, train_loader, test_loader, args):
     
-    print("=> creating model '{}'".format(args.arch))
-    if args.arch.startswith('vit'):
-        model = vits.__dict__[args.arch]()
-        linear_keyword = 'head'
-    else:
-        model = torchvision_models.__dict__[args.arch]()
-        linear_keyword = 'fc'
+    model_linear = MoCo_ViT_LinearProbing(model, 7)
+    #model.remove_mlp_head()
     
-    # freeze all layers but the last fc
-    for name, param in model.named_parameters():
-        if name not in ['%s.weight' % linear_keyword, '%s.bias' % linear_keyword]:
-            param.requires_grad = False
-    # init the fc layer
-    getattr(model, linear_keyword).weight.data.normal_(mean=0.0, std=0.01)
-    getattr(model, linear_keyword).bias.data.zero_()
+    #update_model_with_pretrained(model, train_model, linear_keyword)
+    
+    for param in model_linear.encoder.parameters():
+        param.requires_grad = False
 
     criterion = nn.CrossEntropyLoss().cuda(args.gpu)
     
     init_lr = args.lr * args.batch_size / 256
     # optimize only the linear classifier
-    parameters = list(filter(lambda p: p.requires_grad, model.parameters()))
+    parameters = list(filter(lambda p: p.requires_grad, model_linear.parameters()))
     assert len(parameters) == 2  # weight, bias
     
     optimizer = torch.optim.SGD(parameters, init_lr,
                                 momentum=args.momentum,
                                 weight_decay=args.weight_decay)
+    model_linear = model_linear.to('cuda')
     
     ###########################################################
     #
-    # APRES C PAREIL QUE MAIN_LINCLS
+    # APRES ...
     #
     ###########################################################
     
+    print("=======Début du linear probing======")
     for epoch in range(args.start_epoch, args.epochs):
         adjust_learning_rate(optimizer, init_lr, epoch, args)
 
         # train for one epoch
-        train(train_loader, model, criterion, optimizer, epoch, args)
+        train(train_loader, model_linear, criterion, optimizer, epoch, args)
 
         # evaluate on validation set
-        acc1 = validate(test_loader, model, criterion, args)
+        acc1 = validate(test_loader, model_linear, criterion, args)
 
         """# remember best acc@1 and save checkpoint
         is_best = acc1 > best_acc1
