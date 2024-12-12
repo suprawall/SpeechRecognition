@@ -311,7 +311,7 @@ def main_worker(gpu, ngpus_per_node, args):
         emotion_tab.append(emotion_to_idx[emotion])
         audio_file_tab.append(os.path.join(data_dir, f'{target_labels[i]}wav'))"""
         
-    segment_duration_ms = 64
+    segment_duration_ms = 128
     audio_file_tab = []
     emotion_tab = []
     for audio_file in os.listdir(data_dir):
@@ -431,8 +431,8 @@ def train(train_loader, model, optimizer, scaler, summary_writer, epoch, args):
         
 
         # adjust learning rate and momentum coefficient per iteration
-        #lr = adjust_learning_rate(optimizer, epoch + i / iters_per_epoch, args)
-        #learning_rates.update(lr)
+        lr = adjust_learning_rate(optimizer, epoch + i / iters_per_epoch, args)
+        learning_rates.update(lr)
         if args.moco_m_cos:
             moco_m = adjust_moco_momentum(epoch + i / iters_per_epoch, args)
             
