@@ -266,9 +266,8 @@ def main_worker(gpu, ngpus_per_node, args):
     ########################################
     
     # Data loading code
-    data_dir = "./wav"
+    data_dir = "./dataset_augmente"
 
-    # Load and preprocess audio data using spectrograms
     labels = os.listdir(data_dir)
     audio_data = []
     target_labels = []
@@ -318,7 +317,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     normal_dataset = DL_2024_2025_prepareData.NormalDataset(audio_file_tab, emotion_tab, sr=16000, n_fft=1024, hop_length=512, transform=normalize)
     augment_dataset = DL_2024_2025_prepareData.AugmentDataset(audio_file_tab, emotion_tab, sr=16000, n_fft=1024, hop_length=512, transform=normalize)
-    
+    print(f"longueur dataset: {len(augment_dataset)}")
     train_size = int(0.8 * len(augment_dataset))
     test_size = len(augment_dataset) - train_size
 
