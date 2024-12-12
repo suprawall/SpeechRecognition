@@ -26,19 +26,15 @@ class MoCo_ViT_LinearProbing(nn.Module):
     def __init__(self, pretrained_model, num_classes):
         super(MoCo_ViT_LinearProbing, self).__init__()
         
-        # Copier les couches du modèle pré-entraîné
         self.encoder = pretrained_model.base_encoder
         self.encoder.head = nn.Identity()
         
-        # Ajouter une couche linéaire pour le linear probing
         self.linear = nn.Linear(self.encoder.embed_dim, num_classes)
 
     def forward(self, x):
-        # Extraire les caractéristiques gelées
         with torch.no_grad():
             features = self.encoder(x)
         
-        # Passer par la couche linéaire
         logits = self.linear(features)
         return logits
 
@@ -56,7 +52,7 @@ def execute_lb_and_validate(model, train_loader, test_loader, args):
     criterion = nn.CrossEntropyLoss().cuda(args.gpu)
     
     #init_lr = args.lr * args.batch_size / 256
-    init_lr = 0.0016
+    init_lr = 0.01
     # optimize only the linear classifier
     parameters = list(filter(lambda p: p.requires_grad, model_linear.parameters()))
     assert len(parameters) == 2  # weight, bias
@@ -174,7 +170,7 @@ def validate(val_loader, model, criterion, args):
                 target = target.cuda(args.gpu, non_blocking=True)
 
             # compute output
-            output = model(images)
+            output = model(images[0])
             loss = criterion(output, target)
 
             # measure accuracy and record loss

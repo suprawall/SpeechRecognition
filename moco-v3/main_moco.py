@@ -32,6 +32,7 @@ import torchvision.models as torchvision_models
 from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import random_split, Subset
+import torchaudio
 import DL_2024_2025_prepareData
 import Val_Sara_lincls
 
@@ -266,7 +267,7 @@ def main_worker(gpu, ngpus_per_node, args):
     ########################################
     
     # Data loading code
-    data_dir = "./dataset_augmente"
+    data_dir = "./wav"
 
     labels = os.listdir(data_dir)
     audio_data = []
@@ -292,23 +293,28 @@ def main_worker(gpu, ngpus_per_node, args):
         'sadness': 6
     }
     
+    segment_duration_ms = 32
+    audio_file_tab = []
+    emotion_tab = []
     for audio_file in os.listdir(data_dir):
+        file_path = os.path.join(data_dir, audio_file)
+        waveform, sample_rate = torchaudio.load(file_path)
         speaker = audio_file[0:2]
         text_code = audio_file[2:6]
         emotion = audio_file[6]
         version = audio_file[7] if len(audio_file) > 7 else None
         label = f"{speaker}{text_code}{emotion}{version}"
         target_labels.append(label)
+        
     
-    audio_file_tab = []
+    
     #construire le tableau des emotions:
-    emotion_tab = []
+    
     for i in range(len(target_labels)):
         emo = target_labels[i][5]
         emotion = emotion_map[emo]
         emotion_tab.append(emotion_to_idx[emotion])
         audio_file_tab.append(os.path.join(data_dir, f'{target_labels[i]}wav'))
-    emotion_tab
         
     normalize = transforms.Compose([
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
@@ -340,8 +346,8 @@ def main_worker(gpu, ngpus_per_node, args):
     #test loader pas utile ici mais on coupe qd meme 80% pour le train loader pour pas qu'il s'entraine sur toute les données
     #test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=2, pin_memory=True)
 
-    train_loader2 = DataLoader(train_dataset2, batch_size=args.batch_size, shuffle=True, num_workers=2, pin_memory=True, sampler=train_sampler, drop_last=True)
-    test_loader2 = DataLoader(test_dataset2, batch_size=args.batch_size, shuffle=False, num_workers=2, pin_memory=True)
+    train_loader2 = DataLoader(train_dataset2, batch_size=64, shuffle=True, num_workers=2, pin_memory=True, sampler=train_sampler, drop_last=True)
+    test_loader2 = DataLoader(test_dataset2, batch_size=64, shuffle=False, num_workers=2, pin_memory=True)
 
 
     print(f"début de l'entrainement avec -b: {args.batch_size}")
@@ -394,7 +400,7 @@ def train(train_loader, model, optimizer, scaler, summary_writer, epoch, args):
     iters_per_epoch = len(train_loader)
     moco_m = args.moco_m
     for i, (images, _) in enumerate(train_loader):
-        print(f"iter {i}")
+        #print(f"iter {i}")
         if i == 0:
             print(images[0].shape)
         # measure data loading time
@@ -402,8 +408,8 @@ def train(train_loader, model, optimizer, scaler, summary_writer, epoch, args):
         
 
         # adjust learning rate and momentum coefficient per iteration
-        lr = adjust_learning_rate(optimizer, epoch + i / iters_per_epoch, args)
-        learning_rates.update(lr)
+        #lr = adjust_learning_rate(optimizer, epoch + i / iters_per_epoch, args)
+        #learning_rates.update(lr)
         if args.moco_m_cos:
             moco_m = adjust_moco_momentum(epoch + i / iters_per_epoch, args)
             
