@@ -348,18 +348,25 @@ def main_worker(gpu, ngpus_per_node, args):
 
     normal_dataset = DL_2024_2025_prepareData.NormalDataset(audio_file_tab, emotion_tab, sr=16000, n_fft=512, hop_length=512, transform=normalize)
     augment_dataset = DL_2024_2025_prepareData.AugmentDataset(audio_file_tab, emotion_tab, sr=16000, n_fft=512, hop_length=512, transform=normalize)
-    print(f"longueur dataset: {len(augment_dataset)}")
+    seed = 42
+    torch.manual_seed(seed)
+
+    # Calcul des tailles des ensembles
     train_size = int(0.8 * len(augment_dataset))
     test_size = len(augment_dataset) - train_size
 
-    # Diviser l'index de manière fixe, sans randomisation
-    train_indices = list(range(train_size))
-    test_indices = list(range(train_size, len(augment_dataset)))
+    # Mélanger les indices de manière reproductible
+    indices = torch.randperm(len(augment_dataset)).tolist()
 
+    # Diviser les indices en ensembles d'entraînement et de test
+    train_indices = indices[:train_size]
+    test_indices = indices[train_size:]
+
+    # Créer les sous-ensembles mélangés
     train_dataset = torch.utils.data.Subset(augment_dataset, train_indices)
     test_dataset = torch.utils.data.Subset(augment_dataset, test_indices)
-    train_dataset2 = Subset(normal_dataset, train_indices)
-    test_dataset2 = Subset(normal_dataset, test_indices)
+    train_dataset2 = torch.utils.data.Subset(normal_dataset, train_indices)
+    test_dataset2 = torch.utils.data.Subset(normal_dataset, test_indices)
 
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
