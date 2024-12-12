@@ -34,7 +34,7 @@ def pitch(data, sampling_rate, pitch_factor=0.7):
 #adapter l'augmentation des données (par paire d'audio original)
 #
 ################################################################
-def augment_audio(data, sampling_rate, augment_type):
+def augment_audio(data, augment_type, sampling_rate = 22050):
     """
     Applique les augmentations spécifiées sur un fichier audio.
     
@@ -55,7 +55,7 @@ def augment_audio(data, sampling_rate, augment_type):
     return data
 
 class AugmentDataset(Dataset):
-    def __init__(self, file_paths, emotion_tab, sr=16000, n_fft=1024, hop_length=512, transform=None):
+    def __init__(self, audio_file, emotion_tab, sr=16000, n_fft=512, hop_length=512, transform=None):
         """
         Dataset pour charger des fichiers audio et générer des spectrogrammes augmentés.
         
@@ -67,7 +67,7 @@ class AugmentDataset(Dataset):
         - hop_length (int): Décalage entre les fenêtres FFT.
         - transform (callable, optional): Transformations supplémentaires (normalisation, etc.).
         """
-        self.file_paths = file_paths
+        self.audio_file = audio_file
         self.emotion_tab = emotion_tab
         self.sr = sr
         self.n_fft = n_fft
@@ -75,21 +75,19 @@ class AugmentDataset(Dataset):
         self.transform = transform
 
     def __len__(self):
-        return len(self.file_paths)
+        return len(self.audio_file)
 
     def __getitem__(self, idx):
-        file_path = self.file_paths[idx]
+        waveform = self.audio_file[idx]
         emotion = self.emotion_tab[idx]
-        waveform, sr = torchaudio.load(file_path)
-        waveform = waveform[0].numpy()  
 
         # Appliquer les augmentations
-        augment1 = augment_audio(waveform, sr, "noise_stretch")
-        augment2 = augment_audio(waveform, sr, "shift_pitch")
+        augment1 = augment_audio(waveform, "noise_stretch")
+        augment2 = augment_audio(waveform, "shift_pitch")
 
         # Convertir chaque augmentation en spectrogramme
-        spectrogram1 = self._compute_spectrogram(augment1, sr)
-        spectrogram2 = self._compute_spectrogram(augment2, sr)
+        spectrogram1 = self._compute_spectrogram(augment1)
+        spectrogram2 = self._compute_spectrogram(augment2)
 
         spectrogram1 = resize(torch.tensor(spectrogram1), [224, 224])
         spectrogram2 = resize(torch.tensor(spectrogram2), [224, 224])
@@ -104,7 +102,7 @@ class AugmentDataset(Dataset):
             
         return (spectrogram1, spectrogram2), emotion
 
-    def _compute_spectrogram(self, data, sr):
+    def _compute_spectrogram(self, data):
         """
         Convertit un signal audio en spectrogramme.
         
@@ -209,7 +207,7 @@ class AugmentMocoDataset(Dataset):
         return spectrogram_3d
 
 class NormalDataset(Dataset):
-    def __init__(self, file_paths, emotion_tab, sr=16000, n_fft=1024, hop_length=512, transform=None):
+    def __init__(self, audio_file, emotion_tab, sr=16000, n_fft=512, hop_length=512, transform=None):
         """
         Dataset pour charger des fichiers audio et générer des spectrogrammes augmentés.
         
@@ -221,7 +219,7 @@ class NormalDataset(Dataset):
         - hop_length (int): Décalage entre les fenêtres FFT.
         - transform (callable, optional): Transformations supplémentaires (normalisation, etc.).
         """
-        self.file_paths = file_paths
+        self.audio_file = audio_file
         self.emotion_tab = emotion_tab
         self.sr = sr
         self.n_fft = n_fft
@@ -229,15 +227,13 @@ class NormalDataset(Dataset):
         self.transform = transform
 
     def __len__(self):
-        return len(self.file_paths)
+        return len(self.audio_file)
 
     def __getitem__(self, idx):
-        file_path = self.file_paths[idx]
+        waveform = self.audio_file[idx]
         emotion = self.emotion_tab[idx]
-        waveform, sr = torchaudio.load(file_path)
-        waveform = waveform[0].numpy()  
 
-        spectrogram1 = self._compute_spectrogram(waveform, sr)
+        spectrogram1 = self._compute_spectrogram(waveform)
 
         spectrogram1 = resize(torch.tensor(spectrogram1), [224, 224])
         
@@ -250,7 +246,7 @@ class NormalDataset(Dataset):
             
         return spectrogram1, emotion
 
-    def _compute_spectrogram(self, data, sr):
+    def _compute_spectrogram(self, data):
         """
         Convertit un signal audio en spectrogramme.
         
