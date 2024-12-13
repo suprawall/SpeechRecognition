@@ -27,6 +27,7 @@ import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as torchvision_models
+import torchaudio
 import DL_2024_2025_prepareData
 
 import vits
@@ -189,7 +190,7 @@ def main_worker(gpu, ngpus_per_node, args):
             msg = model.load_state_dict(state_dict, strict=False)
             print(f"state_dict: {state_dict}")
             print(f"missing keys: {msg.missing_keys}")
-            #assert set(msg.missing_keys) == {"%s.weight" % linear_keyword, "%s.bias" % linear_keyword}
+            assert set(msg.missing_keys) == {"%s.weight" % linear_keyword, "%s.bias" % linear_keyword}
 
             print("=> loaded pre-trained model '{}'".format(args.pretrained))
         else:
@@ -293,23 +294,35 @@ def main_worker(gpu, ngpus_per_node, args):
         'sadness': 6
     }
     
+    segment_duration_ms = 32
+    audio_file_tab = []
+    emotion_tab = []
     for audio_file in os.listdir(data_dir):
+        file_path = os.path.join(data_dir, audio_file)
+        waveform, sample_rate = torchaudio.load(file_path)
+        waveform = waveform[0].numpy()
+        
         speaker = audio_file[0:2]
         text_code = audio_file[2:6]
-        emotion = audio_file[6]
+        emotion = audio_file[5]
         version = audio_file[7] if len(audio_file) > 7 else None
         label = f"{speaker}{text_code}{emotion}{version}"
+        
+        segment_samples = int((segment_duration_ms / 1000) * sample_rate)
+        num_segments = len(waveform) // segment_samples
+        
+        for i in range(num_segments):
+            start = i * segment_samples
+            end = start + segment_samples
+            segment = waveform[start:end]
+
+            # Ajouter le segment et le label correspondant
+            audio_file_tab.append(segment)
+            emo = emotion_map[emotion]
+            emotion_tab.append(emotion_to_idx[emo])
+        
+        
         target_labels.append(label)
-    
-    audio_file_tab = []
-    #construire le tableau des emotions:
-    emotion_tab = []
-    for i in range(len(target_labels)):
-        emo = target_labels[i][5]
-        emotion = emotion_map[emo]
-        emotion_tab.append(emotion_to_idx[emotion])
-        audio_file_tab.append(os.path.join(data_dir, f'{target_labels[i]}wav'))
-    emotion_tab
         
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
