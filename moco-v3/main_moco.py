@@ -311,7 +311,7 @@ def main_worker(gpu, ngpus_per_node, args):
         emotion_tab.append(emotion_to_idx[emotion])
         audio_file_tab.append(os.path.join(data_dir, f'{target_labels[i]}wav'))"""
         
-    segment_duration_ms = 32
+    segment_duration_ms = 512
     audio_file_tab = []
     emotion_tab = []
     for audio_file in os.listdir(data_dir):
@@ -390,7 +390,7 @@ def main_worker(gpu, ngpus_per_node, args):
         # train for one epoch
         train(train_loader, model, optimizer, scaler, summary_writer, epoch, args)
 
-        """if epoch + 1 == args.epochs: #On enregistre qu'à la derniere epoch pour minimiser l'espace de stockage nécessaire
+        if epoch + 1 == args.epochs: #On enregistre qu'à la derniere epoch pour minimiser l'espace de stockage nécessaire
             checkpoint_path = f'checkpoint_{epoch+1}.pth.tar'
             save_checkpoint({
                 'epoch': epoch + 1,
@@ -398,7 +398,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 'state_dict': model.state_dict(),
                 'optimizer' : optimizer.state_dict(),
                 'scaler': scaler.state_dict(),
-            }, is_best=False, filename=checkpoint_path)"""
+            }, is_best=False, filename=checkpoint_path)
 
     if args.rank == 0:
         summary_writer.close()
