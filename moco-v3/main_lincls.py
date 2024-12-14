@@ -39,8 +39,8 @@ torchvision_model_names = sorted(name for name in torchvision_models.__dict__
 model_names = ['vit_small', 'vit_base', 'vit_conv_small', 'vit_conv_base'] + torchvision_model_names
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
-"""parser.add_argument('data', metavar='DIR',
-                    help='path to dataset')"""
+parser.add_argument('data', metavar='DIR',
+                    help='path to dataset')
 parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet50',
                     choices=model_names,
                     help='model architecture: ' +
@@ -266,7 +266,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     # Data loading code
     # Data loading code
-    data_dir = "./wav"
+    """data_dir = "./wav"
 
     # Load and preprocess audio data using spectrograms
     labels = os.listdir(data_dir)
@@ -324,9 +324,14 @@ def main_worker(gpu, ngpus_per_node, args):
         target_labels.append(label)
         
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])"""
+    
+    traindir = os.path.join(args.data, 'train')
+    valdir = os.path.join(args.data, 'val')
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
 
-    """train_dataset = datasets.ImageFolder(
+    train_dataset = datasets.ImageFolder(
         traindir,
         transforms.Compose([
             transforms.RandomResizedCrop(224),
@@ -334,6 +339,11 @@ def main_worker(gpu, ngpus_per_node, args):
             transforms.ToTensor(),
             normalize,
         ]))
+
+    if args.distributed:
+        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
+    else:
+        train_sampler = None
 
 
     train_loader = torch.utils.data.DataLoader(
@@ -352,9 +362,9 @@ def main_worker(gpu, ngpus_per_node, args):
 
     if args.evaluate:
         validate(val_loader, model, criterion, args)
-        return"""
+        return
     
-    normal_dataset = DL_2024_2025_prepareData.NormalDataset(audio_file_tab, emotion_tab, sr=16000, n_fft=1024, hop_length=512, transform=normalize)
+    """normal_dataset = DL_2024_2025_prepareData.NormalDataset(audio_file_tab, emotion_tab, sr=16000, n_fft=1024, hop_length=512, transform=normalize)
     
     train_size = int(0.8 * len(normal_dataset))
     test_size = len(normal_dataset) - train_size
@@ -365,7 +375,7 @@ def main_worker(gpu, ngpus_per_node, args):
     train_dataset = torch.utils.data.Subset(normal_dataset, train_indices)
     test_dataset = torch.utils.data.Subset(normal_dataset, test_indices)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2, pin_memory=True, sampler=None, drop_last=True)
-    val_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=2, pin_memory=True)
+    val_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=2, pin_memory=True)"""
 
     for epoch in range(args.start_epoch, args.epochs):
         """if args.distributed:
