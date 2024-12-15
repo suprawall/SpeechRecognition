@@ -34,7 +34,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import random_split, Subset
 import torchaudio
 import DL_2024_2025_prepareData
-import Val_Sara_lincls
+import DL2425_linear_probing
 
 import moco.builder
 import moco.loader
@@ -391,7 +391,7 @@ def main_worker(gpu, ngpus_per_node, args):
         # train for one epoch
         train(train_loader, model, optimizer, scaler, summary_writer, epoch, args)
 
-        if epoch + 1 == args.epochs: #On enregistre qu'à la derniere epoch pour minimiser l'espace de stockage nécessaire
+        """if epoch + 1 == args.epochs: #On enregistre qu'à la derniere epoch pour minimiser l'espace de stockage nécessaire
             checkpoint_path = f'checkpoint_{epoch+1}.pth.tar'
             save_checkpoint({
                 'epoch': epoch + 1,
@@ -399,7 +399,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 'state_dict': model.state_dict(),
                 'optimizer' : optimizer.state_dict(),
                 'scaler': scaler.state_dict(),
-            }, is_best=False, filename=checkpoint_path)
+            }, is_best=False, filename=checkpoint_path)"""
 
     if args.rank == 0:
         summary_writer.close()
@@ -413,7 +413,7 @@ def main_worker(gpu, ngpus_per_node, args):
     args
     test_loader"""
     
-    Val_Sara_lincls.execute_lb_and_validate(model, train_loader2, test_loader2, args)
+    DL2425_linear_probing.execute_lb_and_validate(model, train_loader2, test_loader2, args)
     
 
 def train(train_loader, model, optimizer, scaler, summary_writer, epoch, args):
@@ -468,55 +468,6 @@ def train(train_loader, model, optimizer, scaler, summary_writer, epoch, args):
         if i % args.print_freq == 0:
             progress.display(i)
             
-def linear_probing(train_loader, model, args):
-    
-    model = torch.nn.Sequential(*list(model.children())[:-1])
-    for param in model.parameters():
-        param.requires_grad = False
-        
-    linear_classifier = nn.Linear(model[-1].num_features, 7)
-    optimizer = optim.SGD(linear_classifier.parameters(), lr=0.1, momentum=0.9, weight_decay=0)
-    criterion = nn.CrossEntropyLoss()
-    moco_m = args.moco_m
-    
-    epochs = 15
-    linear_classifier.train()
-    for epoch in range(epochs):
-        #linear_classifier.train()
-        running_loss = 0.0
-        correct = 0
-        total = 0
-        
-        for i, (images, labels) in enumerate(train_loader):
-            print(f"iter {i}")
-            print(labels)
-            spectro1, spectro2 = images
-            spectro1 = spectro1.to(torch.float32).to('cuda')
-            spectro2 = spectro2.to(torch.float32).to('cuda')
-            print(spectro1.shape)
-            labels = labels.to('cuda')
-            
-            
-            # Extraire les caractéristiques du modèle pré-entraîné
-            q1, q2, _ = model(spectro1, spectro2, moco_m)  
-            q1 = q1.view(q1.size(0), -1)
-            
-            # Appliquer le classifieur linéaire
-            optimizer.zero_grad()
-            outputs = linear_classifier(q1)
-            
-            # Calculer la perte et les gradients
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-            
-            running_loss += loss.item()
-            _, predicted = outputs.max(1)
-            total += labels.size(0)
-            correct += predicted.eq(labels).sum().item()
-
-        # Afficher la perte et l'exactitude pour chaque époque
-        print(f'Epoch [{epoch+1}/{epochs}], Loss: {running_loss/len(train_loader):.4f}, Accuracy: {100.*correct/total:.2f}%')
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
     torch.save(state, filename)
