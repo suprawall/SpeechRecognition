@@ -64,23 +64,17 @@ def execute_lb_and_validate(model, train_loader, test_loader, args):
                                 weight_decay=args.weight_decay)
     model_linear = model_linear.to('cuda')
     
-    ###########################################################
-    #
-    # APRES ...
-    #
-    ###########################################################
-    
     
     
     print("=======Début du linear probing======")
-    for epoch in range(args.start_epoch, args.epochs):
+    for epoch in range(1):
         adjust_learning_rate(optimizer, init_lr, epoch, args)
 
         # train for one epoch
         train(train_loader, model_linear, criterion, optimizer, epoch, args)
 
         # evaluate on validation set
-        acc1 = validate(test_loader, model_linear, criterion, args)
+        _, acc1 = validate(test_loader, model_linear, criterion, args)
         ACCURACY.append(acc1)
 
         """# remember best acc@1 and save checkpoint
@@ -98,8 +92,24 @@ def execute_lb_and_validate(model, train_loader, test_loader, args):
             }, is_best)
             if epoch == args.start_epoch:
                 sanity_check(model.state_dict(), args.pretrained, linear_keyword)"""
-        
+    
 
+def plot_accuracy(accuracy_values):
+    epochs = range(1, len(accuracy_values) + 1) 
+    plt.figure(figsize=(10, 6))
+    plt.plot(epochs, accuracy_values, marker='o', linestyle='-', color='b', label='Accuracy')
+    plt.title('Accuracy over Epochs')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.grid(True)
+    plt.legend()
+    plt.show()    
+
+    ###########################################################
+    #
+    # APRES MEME CODE QUE MOCO
+    #
+    ###########################################################
 
 def train(train_loader, model, criterion, optimizer, epoch, args):
     batch_time = AverageMeter('Time', ':6.3f')
@@ -196,7 +206,7 @@ def validate(val_loader, model, criterion, args):
         print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
               .format(top1=top1, top5=top5))
 
-    return top1.avg
+    return top1.avg, acc1
 
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
@@ -293,12 +303,3 @@ def accuracy(output, target, topk=(1,)):
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
     
-def plot_accuracy(tab):
-    plt.figure(figsize=(10, 6))
-    plt.plot(tab['epoch'], tab['accuracy'], marker='o', linestyle='-', color='b', label='Accuracy')
-    plt.title('Accuracy over Epochs')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy')
-    plt.grid(True)
-    plt.legend()
-    plt.show()
