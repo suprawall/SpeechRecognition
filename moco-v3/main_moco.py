@@ -219,7 +219,6 @@ def main_worker(gpu, ngpus_per_node, args):
             model = torch.nn.parallel.DistributedDataParallel(model)
     elif args.gpu is not None:
         torch.cuda.set_device(args.gpu)
-        model = model.cuda(args.gpu)
         # comment out the following line for debugging
         #raise NotImplementedError("Only DistributedDataParallel is supported.")
     else:
@@ -235,7 +234,7 @@ def main_worker(gpu, ngpus_per_node, args):
         optimizer = torch.optim.AdamW(model.parameters(), args.lr,
                                 weight_decay=args.weight_decay)
         
-    model = model.to('cuda')
+    
     scaler = torch.amp.GradScaler()
     summary_writer = SummaryWriter() if args.rank == 0 else None
 
@@ -259,6 +258,8 @@ def main_worker(gpu, ngpus_per_node, args):
             print("=> no checkpoint found at '{}'".format(args.resume))
 
     cudnn.benchmark = True
+    model = model.cuda(args.gpu)
+    model = model.to('cuda')
 
     ########################################
     #
