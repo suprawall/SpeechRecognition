@@ -293,7 +293,7 @@ def main_worker(gpu, ngpus_per_node, args):
         'sadness': 6
     }
     
-    segment_duration_ms = 64
+    segment_duration_ms = 32
     audio_file_tab = []
     emotion_tab = []
     for audio_file in os.listdir(data_dir):
@@ -325,6 +325,8 @@ def main_worker(gpu, ngpus_per_node, args):
         
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
+    
+    print(f"SEGMENT: {segment_duration_ms}")
     
     """traindir = os.path.join(args.data, 'train')
     valdir = os.path.join(args.data, 'val')
