@@ -1,1 +1,0 @@
-python moco-v3/main_moco.py -a vit_small -j 4 --epochs 10 -b 128 --lr 0.03 --gpu 0 --moco-dim 256 --optimizer adamw

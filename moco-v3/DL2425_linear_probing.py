@@ -19,8 +19,11 @@ import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as torchvision_models
+import matplotlib.pyplot as plt
 
 import vits
+
+ACCURACY = []
 
 class MoCo_ViT_LinearProbing(nn.Module):
     def __init__(self, pretrained_model, num_classes):
@@ -67,6 +70,8 @@ def execute_lb_and_validate(model, train_loader, test_loader, args):
     #
     ###########################################################
     
+    
+    
     print("=======Début du linear probing======")
     for epoch in range(args.start_epoch, args.epochs):
         adjust_learning_rate(optimizer, init_lr, epoch, args)
@@ -76,6 +81,7 @@ def execute_lb_and_validate(model, train_loader, test_loader, args):
 
         # evaluate on validation set
         acc1 = validate(test_loader, model_linear, criterion, args)
+        ACCURACY.append(acc1)
 
         """# remember best acc@1 and save checkpoint
         is_best = acc1 > best_acc1
@@ -92,6 +98,7 @@ def execute_lb_and_validate(model, train_loader, test_loader, args):
             }, is_best)
             if epoch == args.start_epoch:
                 sanity_check(model.state_dict(), args.pretrained, linear_keyword)"""
+        
 
 
 def train(train_loader, model, criterion, optimizer, epoch, args):
@@ -285,3 +292,13 @@ def accuracy(output, target, topk=(1,)):
             correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
+    
+def plot_accuracy(tab):
+    plt.figure(figsize=(10, 6))
+    plt.plot(tab['epoch'], tab['accuracy'], marker='o', linestyle='-', color='b', label='Accuracy')
+    plt.title('Accuracy over Epochs')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.grid(True)
+    plt.legend()
+    plt.show()
