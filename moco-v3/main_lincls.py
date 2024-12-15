@@ -293,7 +293,7 @@ def main_worker(gpu, ngpus_per_node, args):
         'sadness': 6
     }
     
-    segment_duration_ms = 32
+    segment_duration_ms = 128
     audio_file_tab = []
     emotion_tab = []
     for audio_file in os.listdir(data_dir):
